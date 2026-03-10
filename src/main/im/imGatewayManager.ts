@@ -622,7 +622,6 @@ export class IMGatewayManager extends EventEmitter {
       feishu: this.feishuGateway.getStatus(),
       telegram: telegramStatus,
       qq: this.qqGateway.getStatus(),
-      telegram: this.telegramGateway.getStatus(),
       discord: this.discordGateway.getStatus(),
       nim: this.nimGateway.getStatus(),
       xiaomifeng: this.xiaomifengGateway.getStatus(),
@@ -992,7 +991,7 @@ export class IMGatewayManager extends EventEmitter {
    * Check if any gateway is connected
    */
   isAnyConnected(): boolean {
-    return this.dingtalkGateway.isConnected() || this.feishuGateway.isConnected() || this.telegramGateway.isConnected() || this.discordGateway.isConnected() || this.nimGateway.isConnected() || this.xiaomifengGateway.isConnected() || this.qqGateway.isConnected() || this.wecomGateway.isConnected();
+    return this.dingtalkGateway.isConnected() || this.feishuGateway.isConnected() || this.discordGateway.isConnected() || this.nimGateway.isConnected() || this.xiaomifengGateway.isConnected() || this.qqGateway.isConnected() || this.wecomGateway.isConnected();
   }
 
   /**

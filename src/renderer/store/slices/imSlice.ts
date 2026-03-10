@@ -11,7 +11,6 @@ import type {
   FeishuConfig,
   TelegramOpenClawConfig,
   QQConfig,
-  TelegramConfig,
   DiscordConfig,
   NimConfig,
   XiaomifengConfig,
@@ -55,11 +54,9 @@ const imSlice = createSlice({
         ...state.config.telegram,
         ...action.payload,
       };
+    },
     setQQConfig: (state, action: PayloadAction<Partial<QQConfig>>) => {
       state.config.qq = { ...state.config.qq, ...action.payload };
-    },
-    setTelegramConfig: (state, action: PayloadAction<Partial<TelegramConfig>>) => {
-      state.config.telegram = { ...state.config.telegram, ...action.payload };
     },
     setDiscordConfig: (state, action: PayloadAction<Partial<DiscordConfig>>) => {
       state.config.discord = { ...state.config.discord, ...action.payload };
@@ -97,7 +94,6 @@ export const {
   setFeishuConfig,
   setTelegramOpenClawConfig,
   setQQConfig,
-  setTelegramConfig,
   setDiscordConfig,
   setNimConfig,
   setXiaomifengConfig,

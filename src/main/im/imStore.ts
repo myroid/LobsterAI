@@ -10,7 +10,6 @@ import {
   FeishuConfig,
   TelegramOpenClawConfig,
   QQConfig,
-  TelegramConfig,
   DiscordConfig,
   NimConfig,
   XiaomifengConfig,
@@ -22,7 +21,6 @@ import {
   DEFAULT_FEISHU_CONFIG,
   DEFAULT_TELEGRAM_OPENCLAW_CONFIG,
   DEFAULT_QQ_CONFIG,
-  DEFAULT_TELEGRAM_CONFIG,
   DEFAULT_DISCORD_CONFIG,
   DEFAULT_NIM_CONFIG,
   DEFAULT_XIAOMIFENG_CONFIG,
@@ -334,6 +332,8 @@ export class IMStore {
   setTelegramOpenClawConfig(config: Partial<TelegramOpenClawConfig>): void {
     const current = this.getTelegramOpenClawConfig();
     this.setConfigValue('telegramOpenClaw', { ...current, ...config });
+  }
+
   // ==================== QQ Config ====================
 
   getQQConfig(): QQConfig {

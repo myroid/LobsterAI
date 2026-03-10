@@ -9,8 +9,7 @@ import { SignalIcon, XMarkIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangl
 import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroicons/react/20/solid';
 import { RootState } from '../../store';
 import { imService } from '../../services/im';
-import { setDingTalkConfig, setFeishuConfig, setTelegramOpenClawConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, clearError } from '../../store/slices/imSlice';
-import { setDingTalkConfig, setFeishuConfig, setQQConfig, setTelegramConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, setWecomConfig, clearError } from '../../store/slices/imSlice';
+import { setDingTalkConfig, setFeishuConfig, setTelegramOpenClawConfig, setQQConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, setWecomConfig, clearError } from '../../store/slices/imSlice';
 import { i18nService } from '../../services/i18n';
 import type { IMPlatform, IMConnectivityCheck, IMConnectivityTestResult, IMGatewayConfig, TelegramOpenClawConfig } from '../../types/im';
 import { getVisibleIMPlatforms } from '../../utils/regionFilter';
@@ -126,14 +125,16 @@ const IMSettings: React.FC = () => {
       ? { ...tgOpenClawConfig, ...override }
       : tgOpenClawConfig;
     await imService.updateConfig({ telegram: configToSave });
+  };
+
   // Handle QQ config change
   const handleQQChange = (field: 'appId' | 'appSecret', value: string) => {
     dispatch(setQQConfig({ [field]: value }));
   };
 
-  // Handle Telegram config change
-  const handleTelegramChange = (field: 'botToken' | 'allowedUserIds', value: string | string[]) => {
-    dispatch(setTelegramConfig({ [field]: value }));
+  // Handle Telegram OpenClaw config change (legacy wrapper)
+  const handleTelegramChange = (field: string, value: string | string[]) => {
+    dispatch(setTelegramOpenClawConfig({ [field]: value }));
   };
 
   // Handle Discord config change
@@ -443,7 +444,6 @@ const IMSettings: React.FC = () => {
       feishu: setFeishuConfig,
       telegram: setTelegramOpenClawConfig,
       qq: setQQConfig,
-      telegram: setTelegramConfig,
       discord: setDiscordConfig,
       nim: setNimConfig,
       xiaomifeng: setXiaomifengConfig,

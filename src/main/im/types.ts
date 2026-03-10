@@ -231,7 +231,6 @@ export interface IMGatewayConfig {
   feishu: FeishuConfig;
   telegram: TelegramOpenClawConfig;
   qq: QQConfig;
-  telegram: TelegramConfig;
   discord: DiscordConfig;
   nim: NimConfig;
   xiaomifeng: XiaomifengConfig;
@@ -344,7 +343,7 @@ export type IMConnectivityCheckCode =
   | 'telegram_privacy_mode_hint'
   | 'dingtalk_bot_membership_hint'
   | 'nim_p2p_only_hint'
-  | 'openclaw_gateway_not_running';
+  | 'openclaw_gateway_not_running'
   | 'qq_guild_mention_hint';
 
 export interface IMConnectivityCheck {
@@ -428,6 +427,9 @@ export const DEFAULT_TELEGRAM_OPENCLAW_CONFIG: TelegramOpenClawConfig = {
   proxy: '',
   webhookUrl: '',
   webhookSecret: '',
+  debug: false,
+};
+
 export const DEFAULT_QQ_CONFIG: QQConfig = {
   enabled: false,
   appId: '',
@@ -452,7 +454,6 @@ export const DEFAULT_IM_CONFIG: IMGatewayConfig = {
   feishu: DEFAULT_FEISHU_CONFIG,
   telegram: DEFAULT_TELEGRAM_OPENCLAW_CONFIG,
   qq: DEFAULT_QQ_CONFIG,
-  telegram: DEFAULT_TELEGRAM_CONFIG,
   discord: DEFAULT_DISCORD_CONFIG,
   nim: DEFAULT_NIM_CONFIG,
   xiaomifeng: DEFAULT_XIAOMIFENG_CONFIG,
@@ -534,7 +535,6 @@ export const DEFAULT_IM_STATUS: IMGatewayStatus = {
     lastOutboundAt: null,
   },
   qq: DEFAULT_QQ_STATUS,
-  telegram: DEFAULT_TELEGRAM_STATUS,
   discord: DEFAULT_DISCORD_STATUS,
   nim: DEFAULT_NIM_STATUS,
   xiaomifeng: DEFAULT_XIAOMIFENG_STATUS,

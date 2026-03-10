@@ -675,6 +675,10 @@ const getOpenClawConfigSync = (): OpenClawConfigSync => {
       getTelegramOpenClawConfig: () => {
         try {
           return getIMGatewayManager()?.getConfig()?.telegram ?? null;
+        } catch {
+          return null;
+        }
+      },
       getDingTalkConfig: () => {
         try {
           return getIMGatewayManager().getConfig().dingtalk;

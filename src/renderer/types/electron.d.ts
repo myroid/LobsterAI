@@ -447,7 +447,6 @@ interface IMGatewayConfig {
   feishu: FeishuConfig;
   telegram: TelegramOpenClawConfig;
   qq: QQConfig;
-  telegram: TelegramConfig;
   discord: DiscordConfig;
   nim: NimConfig;
   xiaomifeng: XiaomifengConfig;

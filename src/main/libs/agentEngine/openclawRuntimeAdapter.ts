@@ -469,6 +469,8 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
   private channelSessionSync: OpenClawChannelSessionSync | null = null;
   private readonly knownChannelSessionIds = new Set<string>();
   private readonly fullySyncedSessions = new Set<string>();
+  /** Sessions re-created after user deletion — use latestOnly sync to avoid replaying old history. */
+  private readonly reCreatedChannelSessionIds = new Set<string>();
   /** Channel sessionKeys explicitly deleted by the user. Polling will not re-create these. */
   private readonly deletedChannelKeys = new Set<string>();
   private channelPollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -1225,6 +1227,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         if (this.deletedChannelKeys.has(sessionKey)) {
           this.deletedChannelKeys.delete(sessionKey);
           this.fullySyncedSessions.add(channelSessionId);
+          this.reCreatedChannelSessionIds.add(channelSessionId);
           console.log('[Debug:handleAgentEvent] re-created after delete, skipping history sync for:', sessionKey);
         }
         this.sessionIdBySessionKey.set(sessionKey, channelSessionId);
@@ -1915,6 +1918,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         if (this.deletedChannelKeys.has(sessionKey)) {
           this.deletedChannelKeys.delete(sessionKey);
           this.fullySyncedSessions.add(channelSessionId);
+          this.reCreatedChannelSessionIds.add(channelSessionId);
           console.log('[Debug:resolveSessionId] re-created after delete, skipping history sync for:', sessionKey);
         }
         this.sessionIdBySessionKey.set(sessionKey, channelSessionId);
@@ -1980,7 +1984,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         && !turn.sessionKey.startsWith('lobsterai:')
         && this.channelSessionSync.isChannelSessionKey(turn.sessionKey);
       if (isChannel) {
-        const latestOnly = this.fullySyncedSessions.has(sessionId);
+        const latestOnly = this.reCreatedChannelSessionIds.has(sessionId);
         this.syncChannelUserMessages(sessionId, history.messages, latestOnly);
       }
 
@@ -2247,6 +2251,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
     }
     this.activeTurns.delete(sessionId);
     this.lastSystemPromptBySession.delete(sessionId);
+    this.reCreatedChannelSessionIds.delete(sessionId);
   }
 
   /**
@@ -2275,6 +2280,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
 
     // Allow full history re-sync when session is re-created
     this.fullySyncedSessions.delete(sessionId);
+    this.reCreatedChannelSessionIds.delete(sessionId);
 
     // Clean up active turn and related run-id mappings
     this.cleanupSessionTurn(sessionId);
@@ -2358,7 +2364,7 @@ export class OpenClawRuntimeAdapter extends EventEmitter implements CoworkRuntim
         console.log('[Debug:prefetch] chat.history returned', msgCount, 'messages (attempt', attempt, ')');
 
         if (Array.isArray(history?.messages) && history.messages.length > 0) {
-          const latestOnly = this.fullySyncedSessions.has(sessionId);
+          const latestOnly = this.reCreatedChannelSessionIds.has(sessionId);
           const beforeCount = this.getUserMessageCount(sessionId);
           this.syncChannelUserMessages(sessionId, history.messages, latestOnly);
           const afterCount = this.getUserMessageCount(sessionId);
