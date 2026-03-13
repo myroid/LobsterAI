@@ -444,7 +444,20 @@ export interface ApplyTurnMemoryUpdatesResult {
   skipped: number;
 }
 
-const getDefaultSystemPrompt = (): string => '';
+let cachedDefaultSystemPrompt: string | null = null;
+
+const getDefaultSystemPrompt = (): string => {
+  if (cachedDefaultSystemPrompt !== null) {
+    return cachedDefaultSystemPrompt;
+  }
+  try {
+    const promptPath = path.join(app.getAppPath(), 'resources', 'SYSTEM_PROMPT.md');
+    cachedDefaultSystemPrompt = fs.readFileSync(promptPath, 'utf-8');
+  } catch {
+    cachedDefaultSystemPrompt = '';
+  }
+  return cachedDefaultSystemPrompt;
+};
 
 interface CoworkMessageRow {
   id: string;
