@@ -356,8 +356,9 @@ export class OpenClawEngineManager extends EventEmitter {
     }
 
     this.ensureBareEntryFiles(runtime.root);
-    this.applyRuntimeHotfixes(runtime.root);
     console.log(`[OpenClaw] startGateway: ensureBareEntryFiles done (${elapsed()})`);
+    this.applyRuntimeHotfixes(runtime.root);
+    console.log(`[OpenClaw] startGateway: applyRuntimeHotfixes done (${elapsed()})`);
 
     const openclawEntry = this.resolveOpenClawEntry(runtime.root);
     console.log(`[OpenClaw] startGateway: resolveOpenClawEntry done (${elapsed()}), entry=${openclawEntry}`);
@@ -389,6 +390,8 @@ export class OpenClawEngineManager extends EventEmitter {
     });
 
     const compileCacheDir = path.join(this.stateDir, '.compile-cache');
+    const cacheWarm = fs.existsSync(compileCacheDir) && fs.readdirSync(compileCacheDir).length > 0;
+    console.log(`[OpenClaw] compile cache: dir=${compileCacheDir}, warm=${cacheWarm}`);
     const electronNodeRuntimePath = getElectronNodeRuntimePath();
     const cliShimDir = this.ensureBundledCliShims();
 
@@ -579,6 +582,19 @@ export class OpenClawEngineManager extends EventEmitter {
   }
 
   private ensureBareEntryFiles(runtimeRoot: string): void {
+    const t0 = Date.now();
+
+    // Fast path: if gateway-bundle.mjs exists, skip full dist extraction.
+    // The bundle is the primary entry; dist/ modules are only needed as fallback.
+    const bundlePath = path.join(runtimeRoot, 'gateway-bundle.mjs');
+    if (fs.existsSync(bundlePath)) {
+      console.log('[OpenClaw] ensureBareEntryFiles: bundle exists, skipping dist extraction');
+      this.ensureControlUiFiles(runtimeRoot);
+      console.log(`[OpenClaw] ensureBareEntryFiles: completed in ${Date.now() - t0}ms`);
+      return;
+    }
+
+    console.log('[OpenClaw] ensureBareEntryFiles: no bundle found, checking bare files');
     const bareEntry = path.join(runtimeRoot, 'openclaw.mjs');
     const bareDistEntry = path.join(runtimeRoot, 'dist', 'entry.js');
 
@@ -592,7 +608,7 @@ export class OpenClawEngineManager extends EventEmitter {
       return;
     }
 
-    console.log('[OpenClaw] Bare entry files missing, extracting from gateway.asar...');
+    console.log('[OpenClaw] ensureBareEntryFiles: extracting from gateway.asar (no bundle)');
 
     try {
       if (!fs.existsSync(bareEntry)) {
@@ -610,6 +626,32 @@ export class OpenClawEngineManager extends EventEmitter {
       console.log('[OpenClaw] Entry files extracted successfully.');
     } catch (err) {
       console.error('[OpenClaw] Failed to extract entry files from gateway.asar:', err);
+    }
+  }
+
+  /**
+   * Extract only dist/control-ui/ from gateway.asar if not already on disk.
+   * The control-ui directory contains static HTML/CSS/JS assets served by the
+   * gateway's admin UI and must exist as bare files on the filesystem.
+   */
+  private ensureControlUiFiles(runtimeRoot: string): void {
+    const controlUiIndex = path.join(runtimeRoot, 'dist', 'control-ui', 'index.html');
+    if (fs.existsSync(controlUiIndex)) {
+      return;
+    }
+
+    const asarControlUi = path.join(runtimeRoot, 'gateway.asar', 'dist', 'control-ui');
+    if (!fs.existsSync(asarControlUi)) {
+      // control-ui may already exist as bare files from the build (see build-openclaw-runtime.sh)
+      return;
+    }
+
+    console.log('[OpenClaw] Extracting dist/control-ui/ from gateway.asar...');
+    try {
+      this.copyDirFromAsar(asarControlUi, path.join(runtimeRoot, 'dist', 'control-ui'));
+      console.log('[OpenClaw] Extracted dist/control-ui/');
+    } catch (err) {
+      console.error('[OpenClaw] Failed to extract dist/control-ui/ from gateway.asar:', err);
     }
   }
 
@@ -771,6 +813,19 @@ export class OpenClawEngineManager extends EventEmitter {
   }
 
   private resolveOpenClawEntry(runtimeRoot: string): string | null {
+    // Bundle fast-path via CJS launcher is only needed on Windows where
+    // utilityProcess.fork() cannot load ESM directly. On macOS/Linux,
+    // ensureBareEntryFiles already skips extraction when bundle exists,
+    // but this method falls through to gateway.asar/openclaw.mjs which
+    // ESM loads directly without a CJS wrapper.
+    if (process.platform === 'win32') {
+      const bundlePath = path.join(runtimeRoot, 'gateway-bundle.mjs');
+      if (fs.existsSync(bundlePath)) {
+        console.log('[OpenClaw] resolveOpenClawEntry: using bundle fast path');
+        return this.ensureGatewayLauncherCjsForBundle(runtimeRoot);
+      }
+    }
+
     const esmEntry = findPath([
       path.join(runtimeRoot, 'openclaw.mjs'),
       path.join(runtimeRoot, 'dist', 'entry.js'),
@@ -889,6 +944,73 @@ export class OpenClawEngineManager extends EventEmitter {
     } catch (err) {
       console.error('[OpenClaw] Failed to write gateway-launcher.cjs:', err);
       return esmEntry;
+    }
+    return launcherPath;
+  }
+
+  /**
+   * Generate a simplified CJS launcher that loads gateway-bundle.mjs directly.
+   * Unlike ensureGatewayLauncherCjs(), this version does not include a fallback
+   * to dist/entry.js because the bundle is guaranteed to exist.
+   */
+  private ensureGatewayLauncherCjsForBundle(runtimeRoot: string): string {
+    const launcherPath = path.join(runtimeRoot, 'gateway-launcher.cjs');
+    const expectedContent =
+      `// Auto-generated CJS launcher for Windows — bundle-only mode.\n` +
+      `// Loads gateway-bundle.mjs directly without dist/ fallback.\n` +
+      `const { pathToFileURL } = require('node:url');\n` +
+      `const path = require('node:path');\n` +
+      `const fs = require('node:fs');\n` +
+      `// Enable V8 compile cache to speed up subsequent startups.\n` +
+      `try {\n` +
+      `  const { enableCompileCache } = require('node:module');\n` +
+      `  const ccDir = path.join(process.env.OPENCLAW_STATE_DIR || __dirname, '.compile-cache');\n` +
+      `  enableCompileCache(ccDir);\n` +
+      `  process.stderr.write('[openclaw-launcher] compile-cache dir=' + require('node:module').getCompileCacheDir() + '\\n');\n` +
+      `} catch (_) {}\n` +
+      `const bundlePath = path.join(__dirname, 'gateway-bundle.mjs');\n` +
+      `// Patch argv so openclaw's isMainModule() recognizes this as the main entry.\n` +
+      `const _realpath = (p) => { try { return fs.realpathSync(path.resolve(p)); } catch { return path.resolve(p); } };\n` +
+      `const _launcherInArgv = process.argv[1] &&\n` +
+      `  _realpath(process.argv[1]).toLowerCase() === _realpath(__filename).toLowerCase();\n` +
+      `if (_launcherInArgv) {\n` +
+      `  process.argv[1] = bundlePath;\n` +
+      `} else {\n` +
+      `  process.argv.splice(1, 0, bundlePath);\n` +
+      `}\n` +
+      `process.stderr.write('[openclaw-launcher] argv=' + JSON.stringify(process.argv) + '\\n');\n` +
+      `process.stderr.write('[openclaw-launcher] node=' + process.versions.node + '\\n');\n` +
+      `// Keep the event loop alive while the gateway starts.\n` +
+      `const _keepAlive = setInterval(() => {}, 30000);\n` +
+      `const t0 = Date.now();\n` +
+      `const bundleUrl = pathToFileURL(bundlePath).href;\n` +
+      `process.stderr.write('[openclaw-launcher] loading bundle via import(): ' + bundleUrl + '\\n');\n` +
+      `import(bundleUrl).then(() => {\n` +
+      `  process.stderr.write('[openclaw-launcher] import(gateway-bundle.mjs) ok (' + (Date.now() - t0) + 'ms)\\n');\n` +
+      `  try { require('node:module').flushCompileCache(); } catch (_) {}\n` +
+      `}).catch((err) => {\n` +
+      `  process.stderr.write('[openclaw-launcher] import(gateway-bundle.mjs) failed (' + (Date.now() - t0) + 'ms): ' + (err.stack || err) + '\\n');\n` +
+      `  process.exit(1);\n` +
+      `});\n`;
+
+    try {
+      const existing = fs.existsSync(launcherPath) ? fs.readFileSync(launcherPath, 'utf8') : '';
+      if (existing !== expectedContent) {
+        if (existing) {
+          console.log('[OpenClaw] Overwriting existing gateway-launcher.cjs (switching to bundle-only mode)');
+        }
+        fs.writeFileSync(launcherPath, expectedContent, 'utf8');
+        console.log('[OpenClaw] Generated gateway-launcher.cjs for bundle-only mode');
+      }
+    } catch (err) {
+      console.error('[OpenClaw] Failed to write gateway-launcher.cjs:', err);
+      // Fall back to the legacy launcher generation
+      const esmEntry = findPath([
+        path.join(runtimeRoot, 'openclaw.mjs'),
+        path.join(runtimeRoot, 'gateway.asar', 'openclaw.mjs'),
+      ]);
+      if (esmEntry) return this.ensureGatewayLauncherCjs(runtimeRoot, esmEntry);
+      return launcherPath;
     }
     return launcherPath;
   }
@@ -1016,10 +1138,18 @@ export class OpenClawEngineManager extends EventEmitter {
       }
     }
 
-    for (let offset = 1; offset <= GATEWAY_PORT_SCAN_LIMIT; offset += 1) {
-      const candidate = DEFAULT_GATEWAY_PORT + offset;
-      if (await isPortAvailable(candidate)) {
-        return candidate;
+    // Scan ports in parallel batches of 10 for faster resolution.
+    const BATCH_SIZE = 10;
+    for (let batch = 0; batch * BATCH_SIZE < GATEWAY_PORT_SCAN_LIMIT; batch += 1) {
+      const batchStart = DEFAULT_GATEWAY_PORT + batch * BATCH_SIZE + 1;
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, DEFAULT_GATEWAY_PORT + GATEWAY_PORT_SCAN_LIMIT + 1);
+      const portBatch = Array.from({ length: batchEnd - batchStart }, (_, i) => batchStart + i);
+      const results = await Promise.all(
+        portBatch.map(async (p) => (await isPortAvailable(p)) ? p : null),
+      );
+      const available = results.find((p) => p !== null);
+      if (available != null) {
+        return available;
       }
     }
 
