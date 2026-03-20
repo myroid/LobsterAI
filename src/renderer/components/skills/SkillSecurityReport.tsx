@@ -74,12 +74,19 @@ const SkillSecurityReport: React.FC<SkillSecurityReportProps> = ({
   // Filter out info-level findings (not shown to user)
   const visibleFindings = report.findings.filter(f => f.severity !== 'info');
 
-  // Group findings by dimension
+  // Group findings by dimension and compute max severity per dimension
+  const severityOrder = ['info', 'warning', 'danger', 'critical'];
   const findingsByDimension = new Map<string, SecurityFinding[]>();
+  const dimensionMaxSeverity = new Map<string, string>();
   for (const finding of visibleFindings) {
     const existing = findingsByDimension.get(finding.dimension) || [];
     existing.push(finding);
     findingsByDimension.set(finding.dimension, existing);
+
+    const current = dimensionMaxSeverity.get(finding.dimension) || 'info';
+    if (severityOrder.indexOf(finding.severity) > severityOrder.indexOf(current)) {
+      dimensionMaxSeverity.set(finding.dimension, finding.severity);
+    }
   }
 
   return createPortal(
@@ -120,7 +127,7 @@ const SkillSecurityReport: React.FC<SkillSecurityReportProps> = ({
           <div className="space-y-1.5">
             {Array.from(findingsByDimension.entries()).map(([dimension, findings]) => {
               const isExpanded = expandedDimensions.has(dimension);
-              const summary = report.dimensionSummary[dimension];
+              const maxSeverity = dimensionMaxSeverity.get(dimension) || 'warning';
               const dimLabel = DIMENSION_LABELS[dimension];
 
               return (
@@ -136,7 +143,7 @@ const SkillSecurityReport: React.FC<SkillSecurityReportProps> = ({
                       ) : (
                         <ChevronRightIcon className="h-3.5 w-3.5 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
                       )}
-                      <span className={`w-2 h-2 rounded-full ${SEVERITY_DOTS[summary?.maxSeverity || 'warning']}`} />
+                      <span className={`w-2 h-2 rounded-full ${SEVERITY_DOTS[maxSeverity] || SEVERITY_DOTS.warning}`} />
                       <span className="text-sm font-medium dark:text-claude-darkText text-claude-text">
                         {dimLabel ? i18nService.t(dimLabel) : dimension}
                       </span>
@@ -151,7 +158,7 @@ const SkillSecurityReport: React.FC<SkillSecurityReportProps> = ({
                       {findings.map((finding, idx) => (
                         <div key={`${finding.ruleId}-${idx}`} className="pl-6 text-xs">
                           <div className="flex items-start gap-1.5">
-                            <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${SEVERITY_DOTS[finding.severity]}`} />
+                            <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${SEVERITY_DOTS[finding.severity] || SEVERITY_DOTS.warning}`} />
                             <div>
                               <p className="dark:text-claude-darkText text-claude-text">
                                 {i18nService.t(finding.description) || finding.description}

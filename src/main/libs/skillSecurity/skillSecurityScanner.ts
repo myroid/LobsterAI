@@ -427,7 +427,7 @@ export function mergeReports(reports: SkillSecurityReport[]): SkillSecurityRepor
   }
 
   const truncated = allFindings.slice(0, MAX_FINDINGS);
-  const score = computeRiskScore(truncated);
+  const score = Math.max(computeRiskScore(truncated), maxRiskScore);
 
   return {
     scannedAt: Date.now(),

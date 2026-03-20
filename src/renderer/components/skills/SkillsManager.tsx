@@ -237,6 +237,7 @@ const SkillsManager: React.FC = () => {
     }
     // Security audit returned — show report modal
     if (result.auditReport && result.pendingInstallId) {
+      setIsGithubImportOpen(false);
       setSecurityReport(result.auditReport);
       setPendingInstallId(result.pendingInstallId);
       return;
